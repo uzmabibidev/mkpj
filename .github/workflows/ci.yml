@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check .
+
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev]"
+      # The generation suite builds a real venv per project, so run it in
+      # parallel. Package-installation suites stay opt-in (see network.yml).
+      - run: pytest -n auto
+
+  smoke:
+    # Proves the shipped artifact works the way people install it: a wheel, a
+    # console script on PATH, no source checkout involved.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install build && python -m build
+      - name: Install the wheel
+        shell: bash
+        run: pip install dist/*.whl
+      - name: Generate a project with the installed console script
+        shell: bash
+        run: |
+          mkpj --help
+          mkpj -n smoke_app --profile developer --yes --no-install --no-git --no-vscode
+          test -f smoke_app/pyproject.toml
+          test -f smoke_app/src/smoke_app/main.py

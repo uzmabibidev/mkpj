@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+.env
+.DS_Store
+
+# Local-only notes and helper scripts
+MIGRATION.md
+apply-update.sh
+publish-to-github.sh
+try-mkpj.sh
+fetch-ci-logs.sh

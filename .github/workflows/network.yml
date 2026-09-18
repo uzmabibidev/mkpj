@@ -1,0 +1,36 @@
+name: Package installation
+
+# The suites that install real packages: too slow and too network-dependent
+# for every push, so they run nightly and on demand.
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      heavy:
+        description: "Also run the PyTorch download test (several GB)"
+        type: boolean
+        default: false
+
+jobs:
+  install:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      # XGBoost's macOS wheels link against Homebrew's OpenMP runtime instead
+      # of bundling it, so "import xgboost" fails without it.
+      - name: OpenMP runtime (macOS)
+        if: runner.os == 'macOS'
+        run: brew install libomp
+      - run: pip install -e ".[dev]"
+      - run: pytest --run-network --run-extra -n 4
+      - name: PyTorch (opt-in)
+        if: inputs.heavy
+        run: pytest --run-network --run-heavy -k pytorch
